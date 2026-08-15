@@ -1,14 +1,14 @@
-# RAG Medical Chatbot
+# BioSignal Bot
 
-A Retrieval-Augmented Generation (RAG) chat application that answers medical questions grounded in a Medical Encyclopedia PDF. The system retrieves relevant context from the source document and passes it to an LLM to generate accurate, context-aware answers.
+A Retrieval-Augmented Generation (RAG) chat application that answers questions about your **personal Garmin health data** — sleep, HRV, recovery, Body Battery, resting heart rate, and training load. The system retrieves relevant context from your own Garmin health report and passes it to an LLM to generate grounded, personalized answers instead of generic advice.
 
 ```
-PDF → documents → chunks → embeddings → vector store → retrieval → LLM → answer
+Garmin health report (PDF) → documents → chunks → embeddings → vector store → retrieval → LLM → answer
 ```
 
 ## Overview
 
-Instead of relying purely on an LLM's parametric knowledge, this app builds a searchable knowledge base from a medical encyclopedia and retrieves the most relevant passages for each user question before generating a response. This reduces hallucination and grounds answers in a trusted source.
+Instead of relying on an LLM's general knowledge, this app builds a searchable knowledge base from your exported Garmin health report and retrieves the most relevant passages for each question before generating a response. This keeps answers grounded in *your own data* — e.g. "why was my recovery low this week" is answered from your actual HRV/sleep/training numbers, not generic wellness advice.
 
 ## Architecture
 
@@ -17,7 +17,8 @@ The project is organized into two pipelines plus a delivery layer.
 ### 1. Knowledge layer (offline / preparation pipeline)
 
 ```
-Medical Encyclopedia PDF
+Garmin Health Report (PDF export: sleep, HRV, recovery,
+Body Battery, resting HR, training load)
         ↓
     PDF Loader (PyPDF)
         ↓
@@ -35,15 +36,16 @@ Medical Encyclopedia PDF
 ### 2. Intelligence layer (online / question-answering pipeline)
 
 ```
-User question
+User question (e.g. "How did I sleep last night?",
+"Should I train today?", "Why is my recovery low?")
      ↓
   Retriever (FAISS similarity search)
      ↓
-Relevant chunks
+Relevant chunks from the health report
      ↓
 Mistral LLM (Hugging Face) + retrieved context
      ↓
-Answer
+Answer grounded in your Garmin data
 ```
 
 ### 3. Application layer
@@ -90,14 +92,14 @@ Developer → GitHub → Jenkins → Docker build → Trivy security scan → AW
 ## Project Structure
 
 ```
-RAG-Chatbot/
+BioSignal-Bot/
 │
 ├── .env                        # Hugging Face API token (not committed)
 ├── requirements.txt
 ├── setup.py
 │
 ├── data/
-│   └── medical_encyclopedia.pdf
+│   └── garmin_health_report.pdf   # your exported Garmin health data
 │
 ├── app/
 │   ├── __init__.py
@@ -108,7 +110,7 @@ RAG-Chatbot/
 │   │   └── custom_exception.py  # custom exception classes
 │   │
 │   ├── components/
-│   │   ├── pdf_loader/          # reads PDF into LangChain documents
+│   │   ├── pdf_loader/          # reads Garmin health report into LangChain documents
 │   │   ├── data_loader/         # chunking of documents
 │   │   ├── llm/                 # Mistral LLM integration
 │   │   └── retriever/           # FAISS similarity search
@@ -128,6 +130,7 @@ RAG-Chatbot/
 
 - Python 3.10+
 - A Hugging Face account and API token
+- A Garmin Connect account with an exportable health report
 
 ### Installation
 
@@ -152,15 +155,13 @@ Create a `.env` file in the project root:
 HUGGINGFACEHUB_API_TOKEN=your_hugging_face_token_here
 ```
 
-### Add source data
+### Add your Garmin data
 
-Place your medical encyclopedia PDF at:
+Export your health report from Garmin Connect (sleep, HRV, recovery, Body Battery, resting HR, training load) as a PDF and place it at:
 
 ```
-data/medical_encyclopedia.pdf
+data/garmin_health_report.pdf
 ```
-
-(Any PDF knowledge base can be used instead.)
 
 ## Running the app
 
@@ -172,11 +173,20 @@ python app/app.py
 
 The app will be available at `http://localhost:5000`.
 
+## Example questions
+
+- How did I sleep last night?
+- Should I train today?
+- Why is my recovery low this week?
+- Compare this week with last week.
+- What affected my HRV?
+- Analyze my last 30 days.
+
 ## How it works
 
-1. **Ingestion (offline)**: the PDF is loaded and split into chunks, each chunk is embedded and stored in a local FAISS index.
-2. **Retrieval (online)**: when a user asks a question, the retriever embeds the question and performs a similarity search against the FAISS index to find the most relevant chunks.
-3. **Generation**: the retrieved chunks are passed to the Mistral LLM as context, which generates the final answer.
+1. **Ingestion (offline)**: your Garmin health report PDF is loaded and split into chunks, each chunk is embedded and stored in a local FAISS index.
+2. **Retrieval (online)**: when you ask a question, the retriever embeds it and performs a similarity search against the FAISS index to find the most relevant chunks of your health data.
+3. **Generation**: the retrieved chunks are passed to the Mistral LLM as context, which generates an answer grounded in your actual metrics.
 4. **Delivery**: Flask serves the request/response cycle between the browser and the RAG pipeline.
 
 ## Docker
@@ -184,14 +194,14 @@ The app will be available at `http://localhost:5000`.
 Build and run the containerized app:
 
 ```bash
-docker build -t rag-medical-chatbot .
-docker run -p 5000:5000 --env-file .env rag-medical-chatbot
+docker build -t biosignal-bot .
+docker run -p 5000:5000 --env-file .env biosignal-bot
 ```
 
 Before publishing, the image is scanned for vulnerabilities with **Trivy**.
 
 ```bash
-trivy image rag-medical-chatbot
+trivy image biosignal-bot
 ```
 
 ## CI/CD
@@ -215,6 +225,10 @@ Development is tracked via GitHub milestones:
 5. Logging & Error Handling
 6. Containerization & Security
 7. CI/CD & Deployment
+
+## Privacy note
+
+Your Garmin health report contains personal biometric data. Keep `data/garmin_health_report.pdf` out of version control (see `.gitignore`) and treat it like any other sensitive personal data.
 
 ## License
 
